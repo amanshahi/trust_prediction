@@ -6,10 +6,11 @@ import numpy as np
 import math
 import copy
 class model():
-	def __init__(self, fileName, category, facets, epochs, alpha, beta, gama, m):
+	def __init__(self, fileName, category, facets, epochs, alpha, beta, gama, m, power_var):
 		self.fileName = fileName
 		self.category = category
 		self.facets = facets
+		self.power_var = power_var
 		self.epochs = epochs
 		self.users_at_times = defaultdict(lambda: defaultdict(int))
 		self.identity = np.zeros([self.facets, self.facets])
@@ -55,10 +56,13 @@ class model():
 		sys.stdout.flush()
 		# time.sleep(0.001)
 	def sigma(self,m):
-		self.G = np.zeros([self.max_users, self.max_users])
-		for i in xrange(len(self.mat)):
+		self.G = np.ones([self.max_users, self.max_users])
+		for i in xrange(len(self.mat[self.category])):
+			# print self.mat[self.category][i][2]
 			if self.mat[self.category][i][2] <= m:
-				self.G[self.mat[i][0]-1][self.mat[i][1]-1] = 1
+				self.G[self.mat[self.category][i][0]-1][self.mat[self.category][i][1]-1] = self.power_var
+		self.G/=self.power_var
+				# print self.mat[self.category][i][0]-1, self.mat[self.category][i][1]-1
 	def find_matrix_c(self):
 		self.c = np.zeros([self.max_users, self.max_users])
 		temp_mat1 = np.matmul(self.U, np.matmul(self.V, self.U.T))
@@ -72,23 +76,38 @@ class model():
 		# 		# m3 = np.matmul(m1, np.matmul(self.V, m2))
 		# 		self.c[i][j] = (self.G[i][j] - temp_mat1[i][j])**2
 	def find_matrix_b(self,m):
-		self.b = np.zeros([self.max_users, self.max_users])
+		# print 'Starting B'
+		self.b = np.ones([self.max_users, self.max_users])
 		for i in xrange(self.max_users):
-			self.printing_stuff(i+1, self.max_users)
-			if self.mat[self.category][i][2] <= self.m:
+			# self.printing_stuff(i+1, self.max_users)
+			if self.mat[self.category][i][2] <= m:
 				u1 = self.mat[self.category][i][0]
 				u2 = self.mat[self.category][i][1]
 				t_first = self.users_at_times[u1][u2]
 				sub = max(0, m - t_first)
 				self.b[u1-1][u2-1] = pow(math.e, -self.eta[u1-1]*sub)
+				# print u1-1, u2-1
 	def find_matrix_a(self):
 		# self.a = np.zeros([self.max_users, self.facets])
 		temp_mat1 = self.b*self.G
 		temp_mat2 = np.matmul(self.V, self.U.T).T
 		temp_mat3 = np.matmul(self.V.T, self.U.T).T
+		# print temp_mat2
+		# print temp_mat3
 		t1 = np.matmul(temp_mat1,temp_mat2)
 		t2 = np.matmul(temp_mat1.T,temp_mat3)
-		self.a = (t1 + t2).T
+		# print temp_mat2.shape
+		# su = 0
+		# for i in xrange(self.max_users):
+		# 	su += temp_mat1[i].reshape(1,self.max_users).tolist()[0].count(0)
+		# print su
+		# print [sum(temp_mat1[i].reshape(1,self.max_users).tolist()[0].count(0)) for i in xrange(self.max_users)]
+		# print temp_mat2.T[0].reshape(self.max_users,1).tolist()[0].count(0)
+		# print np.matmul(temp_mat1[0].reshape(1,self.max_users), temp_mat2.T[0].reshape(self.max_users,1))
+		# print temp_mat1.reshape(1,72573361)[0].tolist().count(0)
+		self.a = (t1 + t2)
+		# print self.a[5]
+		# print self.a.shape
 		# for i in xrange(self.max_users):
 		# 	self.printing_stuff(i+1, self.max_users)
 		# 	# t1, t2 = np.zeros(self.facets), np.zeros(self.facets)
@@ -117,7 +136,7 @@ class model():
 		temp_mat4 = temp_mat3.view().reshape(self.max_users, self.facets, self.facets)
 		temp_mat6 = temp_mat5.view().reshape(self.max_users, self.facets, self.facets)
 		for i in xrange(self.max_users):
-			self.printing_stuff(i+1, self.max_users)
+			# self.printing_stuff(i+1, self.max_users)
 			self.A[i] = np.matmul(self.V, np.matmul(temp_mat4[i], self.V.T)) + np.matmul(self.V.T, np.matmul(temp_mat6[i], self.V))
 
 		# self.A = np.zeros([self.max_users, self.facets, self.facets])
@@ -164,6 +183,7 @@ class model():
 	def find_matrix_B(self):
 		# self.B = np.zeros([self.facets, self.facets])
 		self.B = np.matmul(self.U.T, np.matmul(self.b*self.G, self.U))
+		# print (self.b*self.G).reshape(1,72573361)[0].tolist().count(0)
 		# temp_mat1 = self.b*self.G
 		# temp_mat2 = np.matmul(self.U.T, self.U)
 		# self.B = temp_mat1*temp_mat2
@@ -212,11 +232,16 @@ class model():
 	# 		self.UVT[i] = np.matmul(self.U[i], self.V.T)
 			# self.UTU[i] = np.matmul(p2, self.U[i].reshape(1,self.facets))
 	def model_train(self, m):
-		self.eta = np.random.uniform(0,1,self.max_users)
-		self.U = np.random.uniform(0,1,[self.max_users, self.facets])
+		self.eta = np.random.uniform(1,2,self.max_users)
+		self.U = np.random.uniform(1,2,[self.max_users, self.facets])
 		# print self.U
-		self.V = np.random.uniform(0,1,[self.facets, self.facets])
+		self.V = np.random.uniform(1,2,[self.facets, self.facets])
+		# print m
 		self.sigma(m)
+		# print 'Started b'
+		# time_started = time.time()
+		self.find_matrix_b(m)
+		# print '\nTime taken for b = ', time.time() - time_started
 		for i in xrange(self.epochs):
 			print 'epochs #', i
 			temp1 = np.zeros([self.max_users, self.facets])
@@ -225,10 +250,6 @@ class model():
 			# print 'Started precompute'
 			# self.precompute()
 			# print '\nTime taken for precompute = ', time.time() - time_started
-			# time_started = time.time()
-			print 'Started b'
-			self.find_matrix_b(m)
-			print '\nTime taken for b = ', time.time() - time_started
 			time_started = time.time()
 			print 'Started c'
 			self.find_matrix_c()
@@ -249,7 +270,9 @@ class model():
 			print 'Started C'
 			self.find_matrix_C()
 			print '\nTime taken for C = ', time.time() - time_started
-			time_started = time.time()
+			# print self.B
+			# print self.C
+			# time_started = time.time()
 			print 'Updating eta'
 			for j in xrange(self.max_users):
 				num, den = 0, 0
@@ -265,25 +288,32 @@ class model():
 			print 'Updating U'
 			for j in xrange(self.max_users):
 				for k in xrange(self.facets):
+					# print j,k
 					num = self.a[j][k]
 					# print self.U[j]
 					den = np.matmul(self.U[j],self.A[j])
 					# print num, den
 					var = math.sqrt(num/den[k])
 					temp1[j][k] = self.U[j][k]*var
-			print '\nTime taken for eta = ', time.time() - time_started
+			print '\nTime taken for U = ', time.time() - time_started
 			time_started = time.time()
 			print 'Updating V'
 			for j in xrange(self.facets):
 				for k in xrange(self.facets):
-					print j, k, self.B, self.C
+					# print j, k, self.B, self.C
 					num = self.B[j][k]
 					den = self.C[j][k]
+					# print num, den
 					var = math.sqrt(num/den)
 					temp2[j][k] = self.V[j][k]*var
+			# print temp2
 			self.U = copy.deepcopy(temp1)
 			self.V = copy.deepcopy(temp2)
-			print '\nTime taken for eta = ', time.time() - time_started
+			# print self.B
+			# print self.C
+			# print self.V
+			# print self.U
+			print '\nTime taken for V = ', time.time() - time_started
 			time_started = time.time()
 		G_new = np.matmul(self.U, np.matmul(self.V,self.U.T))
 		scipy.io.savemat('predicted_out.mat', {'trust':G_new})		
